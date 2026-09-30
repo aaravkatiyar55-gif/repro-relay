@@ -10,7 +10,7 @@
     "test": "node --test test/*.test.ts",
     "build": "npm run check && vite build && node scripts/build-offline.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "verify": "npm run test && npm run build"
+    "verify": "npm run test && npm run build && node scripts/verify-build.mjs"
   },
   "engines": {"node": ">=24"},
   "devDependencies": {

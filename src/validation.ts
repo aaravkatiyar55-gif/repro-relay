@@ -14,7 +14,7 @@ function identifier(value: unknown): asserts value is string {
   if (typeof value !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(value)) fail('Invalid identifier.');
 }
 function timestamp(value: unknown) {
-  if (typeof value !== 'string' || value.length > 40 || !Number.isFinite(Date.parse(value))) fail('Invalid timestamp.');
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) fail('Invalid ISO UTC timestamp.');
 }
 function array(value: unknown, max: number, label: string): unknown[] {
   if (!Array.isArray(value) || value.length > max) fail(`${label} must contain at most ${max} items.`);
