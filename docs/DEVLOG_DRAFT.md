@@ -17,4 +17,4 @@ All shown data is fictional QA data. The editor collapsed line breaks, so the po
 
 The draft download-path helper timed out during earlier QA; its preview-copy/import fallback was verified. Full testing limits remain in [QA.md](QA.md).
 
-Ship remains aria-disabled. Its tooltip initially required 18 ratings; the latest fresh check requires **14** after submission receipts for 17 authorized reviews and three replacements. Quality-rejection notifications mean these receipts cannot be treated as accepted votes. No Ship submission or reviewer approval has been established; see [SHIP_STATUS.md](SHIP_STATUS.md).
+Ship remains aria-disabled. Its tooltip initially required 18 ratings; the latest fresh check requires **13** after submission receipts for 17 authorized reviews and six replacements. Quality-rejection notifications mean these receipts cannot be treated as accepted votes. No Ship submission or reviewer approval has been established; see [SHIP_STATUS.md](SHIP_STATUS.md).
