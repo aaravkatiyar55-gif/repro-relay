@@ -1,10 +1,10 @@
 # Published devlog — 1 October 2026
 
-[Devlog 63353](https://stardance.hackclub.com/projects/66998/devlogs/63353) is published on Repro Relay. The project feed confirmed “Devlog created successfully”, one devlog, **52m 16s logged** and four screenshots. The header rounds this to one total hour. No two-hour manual-work or reward claim is made. The former longer draft was superseded by the text below before posting.
+[Devlog 63353](https://stardance.hackclub.com/projects/66998#post_75740) is published on Repro Relay. It was edited on 1 October to shorten the writing. The project feed verified the saved text, **52m 16s logged** and four retained screenshots. This was an edit of the existing post, not a second devlog. The header rounds the duration to one total hour.
 
 ## Exact published text
 
-I used Codex to build Repro Relay around a failure, a fix and the check that follows. Codex implemented most of the code, tests and docs and ran the browser checks; this is substantially AI-assisted work. The recovery update adds saved review checkpoints, portable draft backups and protection against two tabs overwriting each other. A Blocked result and its exact note survived reload, and a separate copy kept both competing edits. Edits made during a save remain unsaved. Reviewer tools now include earlier-result hints, Next unchecked step, comparison filters, context reminders and an issue Markdown preview. Processed PNGs can be downloaded separately. All 28 tests, TypeScript and Pages build checks passed. The latest public demo reproduced all three fictional board bugs and passed their matching fixes. Draft recovery worked offline and the 360px view had no overflow. The draft download-path helper timed out, so its complete preview-copy/import fallback was verified instead. These are actual screenshots with fictional QA data. The form’s tracker duration is used; no two-hour manual-work or reward claim is made. [Try the demo](https://aaravkatiyar55-gif.github.io/repro-relay/#/demo) · [Source, setup and QA](https://github.com/aaravkatiyar55-gif/repro-relay)
+Repro Relay now keeps a review together even when it gets interrupted. Save a checkpoint, reload and resume with the same notes and results. The recovery check kept a Blocked result and its exact note without adding a completed run. Two tabs can no longer quietly overwrite each other: the older tab keeps its edits, and Save separate copy keeps both versions. The handoff now has an issue Markdown preview, earlier-result hints and comparison filters. Old failures stay visible when the criteria change. All 28 tests and the production checks passed. On the public demo, each of the three broken-board bugs reproduced and its matching fix passed. Draft recovery also worked offline and the 360px view had no overflow. The README is shorter; detailed checks and limits are linked below. The screenshots use fictional test data. Aarav chose the scope. Codex wrote most of the code, tests and this devlog and ran the recorded browser checks. [Try it](https://aaravkatiyar55-gif.github.io/repro-relay/#/demo) · [Source and checks](https://github.com/aaravkatiyar55-gif/repro-relay)
 
 ## Four published attachments
 
@@ -13,6 +13,8 @@ I used Codex to build Repro Relay around a failure, a fix and the check that fol
 - [Issue Markdown handoff](screenshots/issue-handoff.jpg)
 - [360px recovery view](screenshots/mobile-draft-recovery.png)
 
-All shown data is fictional QA data. The content editor collapsed line breaks, so the final post uses one paragraph with proper spaces and working Markdown links. Its rendered preview was checked before publication. A timeout followed the single Post click; a fresh page proved publication, so the click was not repeated.
+All shown data is fictional QA data. The editor collapsed line breaks, so the post uses one paragraph with spaces and Markdown links. The rendered preview was checked before saving. Save redirected to an HTTP 500 detail page; the working project feed then confirmed the edited text. Save was not repeated. The feed link above avoids the failing detail route.
 
-Ship remains aria-disabled with no visible explanatory reason. Posting this devlog did not submit a Ship or establish reviewer approval.
+The draft download-path helper timed out during earlier QA; its preview-copy/import fallback was verified. Full testing limits remain in [QA.md](QA.md).
+
+Ship remains aria-disabled. Its tooltip initially said **“Vote at least 18 times before shipping!”**. The rating page later showed **17 left**. No Ship submission or reviewer approval has been established; see [SHIP_STATUS.md](SHIP_STATUS.md).

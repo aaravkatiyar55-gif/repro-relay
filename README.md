@@ -2,7 +2,7 @@
 
 Bug feedback needs more than “it doesn't work.” Repro Relay keeps the steps, the failure and the next check in one place.
 
-**[Try the demo](https://aaravkatiyar55-gif.github.io/repro-relay/#/demo)** · [Stardance devlog](https://stardance.hackclub.com/projects/66998/devlogs/63353)
+**[Try the demo](https://aaravkatiyar55-gif.github.io/repro-relay/#/demo)** · [Stardance devlog](https://stardance.hackclub.com/projects/66998#post_75740)
 
 ![An unfinished review recovered on the public app](docs/screenshots/public-draft-recovery.jpg)
 
