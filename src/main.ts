@@ -4,7 +4,11 @@ import { newCase, startRun, finishRun, importedCopy, clone, blankStep, LIMITS, o
 import type { Capsule, Run, Outcome, Evidence } from './model.ts';
 import { compareRuns, changeLabel } from './compare.ts';
 import { CaseStore } from './store.ts';
-import { parseBackup, validateCapsule } from './validation.ts';
+import { pngBytes, validateCapsule } from './validation.ts';
+import { checkpointFor, buildCheckpointBackup, parsePortable, portableCopy } from './checkpoints.ts';
+import type { RunCheckpoint } from './checkpoints.ts';
+import { SaveSession } from './save-session.ts';
+import { buildIssueMarkdown, handoffChecks, evidenceFilename } from './handoff.ts';
 import { prepareImage, processEvidence, clampRect, verifyDecodedEvidence } from './images.ts';
 import type { Rect } from './images.ts';
 import { buildReport, download, fileStem } from './report.ts';
@@ -14,6 +18,7 @@ import type { BoardVersion } from './lab.ts';
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const store = new CaseStore();
 const saved = new Map<string,Capsule>(), drafts = new Map<string,Capsule>(), runDrafts = new Map<string,Run>(), dirty = new Set<string>();
+const saveSession = new SaveSession(), checkpoints = new Map<string,RunCheckpoint>(), runDirty = new Set<string>(), runRevisions = new Map<string,number>();
 let loaded = false, storageProblem = '', message = '', messageType = '', busy = false, offlineReady = false;
 let search = '', statusFilter = 'all';
 let imageCleanup: (() => void) | null = null;
@@ -40,11 +45,23 @@ function working(caseId:string): Capsule | undefined {
   if (source) { const copy = clone(source); drafts.set(caseId,copy); return copy; }
   return undefined;
 }
-function markDirty(capsule:Capsule) { dirty.add(capsule.id); const state = document.querySelector('#save-state'); if (state) state.textContent = 'Unsaved changes'; }
-async function save(capsule:Capsule) {
-  capsule.updatedAt = new Date().toISOString(); validateCapsule(capsule);
-  await store.save(capsule); saved.set(capsule.id,clone(capsule)); dirty.delete(capsule.id); storageProblem = '';
+function markDirty(capsule:Capsule) { saveSession.touch(capsule.id); dirty.add(capsule.id); const state = document.querySelector('#save-state'); if (state) state.textContent = 'Unsaved changes'; }
+function markRun(caseId:string) {
+  runDirty.add(caseId); runRevisions.set(caseId,(runRevisions.get(caseId) || 0)+1);
+  const state=document.querySelector('#checkpoint-state'); if(state) state.textContent='Draft has unsaved changes. Save a checkpoint before leaving.';
 }
+async function save(capsule:Capsule,run?:Run|null) {
+  const attempt=saveSession.capture(capsule,saved.get(capsule.id)); validateCapsule(attempt.snapshot);
+  const revision=runRevisions.get(capsule.id) || 0;
+  const checkpoint=run ? checkpointFor(attempt.snapshot,run) : run===null || attempt.snapshot.runs.some(item=>item.id===checkpoints.get(capsule.id)?.run.id) ? null : undefined;
+  await store.save(attempt.snapshot,attempt.expected,checkpoint);
+  saved.set(capsule.id,clone(attempt.snapshot));
+  if(saveSession.accept(capsule,attempt)) dirty.delete(capsule.id);
+  if(checkpoint) { checkpoints.set(capsule.id,clone(checkpoint)); if((runRevisions.get(capsule.id)||0)===revision) runDirty.delete(capsule.id); }
+  else if(checkpoint===null) checkpoints.delete(capsule.id);
+  storageProblem = '';
+}
+function savedMessage(c:Capsule,text:string) { say(dirty.has(c.id) ? 'The earlier snapshot was saved. Your newer changes are still unsaved.' : text,dirty.has(c.id) ? 'warning' : 'success'); }
 function addCase() { const capsule = newCase(); drafts.set(capsule.id,capsule); dirty.add(capsule.id); go(`/case/${capsule.id}/edit`); }
 function downloadJson(capsule:Capsule) {
   validateCapsule(capsule); download(JSON.stringify(capsule,null,2),fileStem(capsule.spec.title) + '.repro.json','application/json');
@@ -58,11 +75,31 @@ function preview(capsule:Capsule,kind:'json'|'html') {
   const dialog = h('dialog',{'aria-labelledby':dialogId,class:'export-preview'},h('div',{class:'section-title'},h('h2',{id:dialogId},kind === 'json' ? 'Your portable backup' : 'Your portable report'),button('Close preview',() => dialog.close(),'quiet')),h('p',{class:'muted'},kind === 'json' ? 'This validated backup can be imported as a separate case. You can also select and copy this text if downloads are unavailable.' : 'A read-only preview of your portable report. Processed images are embedded; the report needs no scripts or internet.'),content,button(kind === 'json' ? 'Download this JSON' : 'Download this HTML',() => kind === 'json' ? downloadJson(capsule) : downloadHtml(capsule),'primary'));
   dialog.addEventListener('close',() => dialog.remove()); document.body.append(dialog); dialog.showModal(); dialog.querySelector<HTMLButtonElement>('button')?.focus();
 }
-function exports(capsule:Capsule) { return h('div',{class:'actions'},button('JSON backup',() => task(async() => downloadJson(capsule))),button('HTML report',() => task(async() => downloadHtml(capsule))),button('Preview backup',() => task(async() => preview(capsule,'json')),'quiet'),button('Preview report',() => task(async() => preview(capsule,'html')),'quiet')); }
+function downloadIssue(c:Capsule) { download(buildIssueMarkdown(c),fileStem(c.spec.title)+'.issue.md','text/markdown'); say('Issue Markdown prepared. Review it and attach processed PNGs before posting it yourself.'); }
+function issuePreview(c:Capsule) {
+  const dialog=h('dialog',{'aria-labelledby':'issue-title',class:'export-preview'},h('div',{class:'section-title'},h('h2',{id:'issue-title'},'A clear issue handoff'),button('Close preview',()=>dialog.close(),'quiet')),h('p',{},'Copy this Markdown into an issue, or download it. No issue is posted automatically. Only completed snapshots are included; save a draft backup for unfinished observations.'),h('label',{for:'issue-markdown'},'Issue Markdown'),h('textarea',{id:'issue-markdown',readonly:true,spellcheck:'false',class:'backup-json',value:buildIssueMarkdown(c)}),button('Download issue Markdown',()=>downloadIssue(c),'primary'));
+  dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();dialog.querySelector<HTMLButtonElement>('button')?.focus();
+}
+function draftPreview(c:Capsule,run:Run) {
+  const json=buildCheckpointBackup(c,run);
+  const dialog=h('dialog',{'aria-labelledby':'draft-title',class:'export-preview'},h('div',{class:'section-title'},h('h2',{id:'draft-title'},'Your unfinished review backup'),button('Close preview',()=>dialog.close(),'quiet')),h('p',{},'This includes the case and unfinished run. Import it as a separate case. If downloads are unavailable, select and copy this text into a JSON file.'),h('label',{for:'draft-json'},'Draft backup JSON'),h('textarea',{id:'draft-json',readonly:true,spellcheck:'false',class:'backup-json',value:json}),button('Download this draft JSON',()=>download(json,fileStem(c.spec.title)+'.draft.repro.json','application/json'),'primary'));
+  dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();dialog.querySelector<HTMLButtonElement>('button')?.focus();
+}
+function exports(capsule:Capsule) { return h('div',{class:'actions'},button('JSON backup',() => task(async() => downloadJson(capsule))),button('HTML report',() => task(async() => downloadHtml(capsule))),button('Issue Markdown',()=>task(async()=>issuePreview(capsule))),button('Preview backup',() => task(async() => preview(capsule,'json')),'quiet'),button('Preview report',() => task(async() => preview(capsule,'html')),'quiet')); }
+async function saveSeparateCopy(c:Capsule) {
+  validateCapsule(c);
+  const copy=importedCopy(c), run=runDrafts.get(c.id);
+  copy.spec.title=copy.spec.title.slice(0,104)+' (separate copy)';
+  drafts.set(copy.id,copy);markDirty(copy);
+  if(run) {runDrafts.set(copy.id,clone(run));markRun(copy.id);}
+  await save(copy,run ? clone(run) : undefined);
+  say('A separate copy was saved. The original case and the other tab’s work were kept.');go(`/case/${copy.id}/${run ? 'run' : 'compare'}`);
+}
 function beginRun(capsule:Capsule,baselineId:string|null = null) {
   validateCapsule(capsule);
+  if(capsule.runs.length>=LIMITS.runs) throw new Error('This case has 20 completed runs. Export its history and start a new case for more checks.');
   if (runDrafts.has(capsule.id)) say('Your unfinished run is still here. Complete or discard it before starting another.','warning');
-  else runDrafts.set(capsule.id,startRun(capsule,baselineId));
+  else {runDrafts.set(capsule.id,startRun(capsule,baselineId));markRun(capsule.id);}
   go(`/case/${capsule.id}/run`);
 }
 function external(label:string,url:string) { const safe = safeUrl(url); return safe ? h('a',{href:safe,target:'_blank',rel:'noopener noreferrer',class:'text-link'},label,' ↗') : null; }
@@ -73,7 +110,7 @@ function render() {
   imageCleanup?.(); imageCleanup = null;
   const path = route();
   const header = h('header',{class:'app-header'},h('a',{class:'brand',href:'#/'},h('img',{src:'./mark.svg',width:36,height:36,alt:''}),h('span',{},'Repro ',h('strong',{},'Relay'))),h('nav',{'aria-label':'Main navigation'},h('a',{href:'#/','aria-current':path === '/' ? 'page' : undefined},'Cases'),h('a',{href:'#/demo','aria-current':path === '/demo' ? 'page' : undefined},'Try the demo'),h('a',{href:'#/about','aria-current':path === '/about' ? 'page' : undefined},'How it works')),h('span',{class:'local-label'},h('span',{class:'status-dot'}),offlineReady ? 'Offline copy ready' : 'Local-first · no account'));
-  const main = h('main',{id:'main',tabindex:-1});
+  const main = h('main',{id:'main',tabindex:-1,'aria-busy':String(busy)});
   app.replaceChildren(header,h('div',{id:'message',role:'status','aria-live':'polite'}),main,h('footer',{class:'app-footer'},h('span',{},'Caught → reproduced → fixed → checked again.'),h('span',{},'Stored in this browser. Export before clearing it.')));
   updateMessage();
   if (storageProblem) main.append(notice(storageProblem,'error'));
@@ -96,8 +133,10 @@ function home(main:HTMLElement) {
     const file = importInput.files?.[0]; if (!file) return;
     try {
       if (file.size > LIMITS.importBytes) throw new Error('Backup exceeds 20 MB. Nothing was imported.');
-      const capsule = importedCopy(await parseBackup(await file.text(),verifyDecodedEvidence));
-      await save(capsule); drafts.set(capsule.id,clone(capsule)); say('Imported as a separate case. Existing cases were kept.'); go(`/case/${capsule.id}/compare`);
+      const packet = portableCopy(await parsePortable(await file.text(),verifyDecodedEvidence)), capsule=packet.capsule;
+      await save(capsule,packet.checkpoint?.run); drafts.set(capsule.id,clone(capsule));
+      if(packet.checkpoint) runDrafts.set(capsule.id,clone(packet.checkpoint.run));
+      say(packet.checkpoint ? 'Draft backup imported as a separate case. Resume the unfinished run here.' : 'Imported as a separate case. Existing cases were kept.'); go(`/case/${capsule.id}/${packet.checkpoint ? 'run' : 'compare'}`);
     } finally { importInput.value = ''; }
   }));
   const list = h('div',{class:'case-grid'}), count = h('p',{class:'muted'});
@@ -105,7 +144,7 @@ function home(main:HTMLElement) {
     const all = [...new Map([...saved,...drafts]).values()].sort((a,b) => b.updatedAt.localeCompare(a.updatedAt));
     const filtered = all.filter(c => (c.spec.title + ' ' + c.spec.summary).toLowerCase().includes(search.toLowerCase()) && (statusFilter === 'all' || (statusFilter === 'unrecorded' ? !c.runs.length : c.runs.some(run => run.observations.some(row => row.outcome === 'fail')))));
     count.textContent = `${filtered.length} of ${all.length} cases · ${LIMITS.cases} saved-case limit`;
-    list.replaceChildren(...filtered.map(c => h('article',{class:'case-card'},h('div',{class:'card-top'},badge(c.runs.length ? `${c.runs.length} completed run${c.runs.length === 1 ? '' : 's'}` : 'No runs yet'),dirty.has(c.id) ? badge('Unsaved','warning') : badge('Saved locally','neutral')),h('h2',{},c.spec.title || 'Untitled draft'),h('p',{},c.spec.summary || 'Add a clear reproduction and the result you expected.'),h('small',{},`Updated ${time(c.updatedAt)}`),h('div',{class:'actions'},button('Open case',() => go(`/case/${c.id}/edit`)),button('Review runs',() => go(`/case/${c.id}/compare`),'quiet')))));
+    list.replaceChildren(...filtered.map(c => h('article',{class:'case-card'},h('div',{class:'card-top'},badge(c.runs.length ? `${c.runs.length} completed run${c.runs.length === 1 ? '' : 's'}` : 'No runs yet'),dirty.has(c.id) ? badge('Unsaved','warning') : badge('Saved locally','neutral')),h('h2',{},c.spec.title || 'Untitled draft'),h('p',{},c.spec.summary || 'Add a clear reproduction and the result you expected.'),h('small',{},`Updated ${time(c.updatedAt)}`),runDrafts.has(c.id) ? h('p',{class:'draft-hint'},badge(runDirty.has(c.id) ? 'Unsaved review draft' : 'Saved review checkpoint','warning')) : null,h('div',{class:'actions'},button('Open case',() => go(`/case/${c.id}/edit`)),button('Review runs',() => go(`/case/${c.id}/compare`),'quiet'),runDrafts.has(c.id) ? button('Resume review',()=>go(`/case/${c.id}/run`)) : null))));
     if (!filtered.length) list.append(h('div',{class:'empty-state'},h('h2',{},all.length ? 'No matching cases' : 'Your first case starts with one clear step.'),h('p',{},all.length ? 'Change the search or filter.' : 'Try the fictional demo, or create a case for your own project. No sample data is saved automatically.')));
   };
   main.append(h('section',{class:'desk-tools'},field('Find a case',search,value => { search=value; updateList(); },{max:120}),selectField('Show',statusFilter,[{value:'all',label:'All cases'},{value:'unrecorded',label:'No runs yet'},{value:'failures',label:'Has recorded failures'}],value => { statusFilter=value; updateList(); }),h('div',{class:'import-control'},h('span',{class:'label-like'},'Bring a case here'),button('Import JSON',() => importInput.click()),importInput)));
@@ -114,13 +153,14 @@ function home(main:HTMLElement) {
 function casePage(main:HTMLElement,c:Capsule,tab:string) {
   main.append(pageHeading('CASE FILE',c.spec.title || 'A new reproduction','Completed runs keep their own criteria. Editing this case affects the next run only.',[button('Back to cases',() => go('/'),'quiet')]));
   main.append(h('div',{class:'case-bar'},h('nav',{'aria-label':'Case sections',class:'tabs'},...['edit','run','compare'].map((key,index) => h('a',{href:`#/case/${c.id}/${key}`,'aria-current':tab === key ? 'page' : undefined},['1 · Build case','2 · Record a run','3 · Compare & hand off'][index]))),h('span',{id:'save-state',class:'save-state'},dirty.has(c.id) ? 'Unsaved changes' : 'Saved locally')));
+  main.append(h('details',{class:'copy-recovery'},h('summary',{},'Keep both versions / save a separate copy'),h('p',{},'Use this after a two-tab save conflict, or to branch a case. Current edits and any unfinished run go into a new case; the original is kept.'),button('Save separate copy',()=>task(async()=>saveSeparateCopy(c)))));
   if (tab === 'edit') editCase(main,c);
   if (tab === 'run') review(main,c);
   if (tab === 'compare') comparePage(main,c);
 }
 function editCase(main:HTMLElement,c:Capsule) {
   const mutate = (key:keyof Omit<Capsule['spec'],'steps'>,value:string) => { c.spec[key]=value; markDirty(c); };
-  const form = h('form',{class:'panel',onsubmit:event => { event.preventDefault(); task(async() => { await save(c); say('Case saved locally. Its completed runs were kept unchanged.'); render(); }); }},
+  const form = h('form',{class:'panel',onsubmit:event => { event.preventDefault(); task(async() => { await save(c); savedMessage(c,'Case saved locally. Its completed runs were kept unchanged.'); render(); }); }},
     h('h2',{},'What should somebody try?'),h('div',{class:'form-grid'},field('Case title',c.spec.title,value => mutate('title',value),{max:120,required:true}),field('Project version / commit',c.spec.version,value => mutate('version',value),{max:200,hint:'Use a release, commit or build label you can find again.'})),
     field('Why this case matters',c.spec.summary,value => mutate('summary',value),{area:true}),h('div',{class:'form-grid'},field('Demo URL',c.spec.demoUrl,value => mutate('demoUrl',value),{type:'url',max:2048}),field('Source URL',c.spec.sourceUrl,value => mutate('sourceUrl',value),{type:'url',max:2048})),
     h('div',{class:'form-grid'},field('Environment',c.spec.environment,value => mutate('environment',value),{area:true,hint:'Browser, device, screen size and anything that changes the result.'}),field('Before you begin',c.spec.preconditions,value => mutate('preconditions',value),{area:true,hint:'Starting data, permissions and reset instructions.'})),h('div',{class:'section-title'},h('h2',{},'Reproduction steps'),badge(`${c.spec.steps.length} / ${LIMITS.steps}`)));
@@ -133,47 +173,102 @@ function editCase(main:HTMLElement,c:Capsule) {
   main.append(form,evidencePanel(c));
 }
 function review(main:HTMLElement,c:Capsule) {
-  let draft = runDrafts.get(c.id);
-  if (!draft) {
-    const actions = h('div',{class:'actions'},external('Open project demo',c.spec.demoUrl),button('Start a fresh run',() => task(async() => beginRun(c)),'primary'));
-    c.runs.slice(-1).forEach(run => actions.append(button('Retest the latest run',() => task(async() => beginRun(c,run.id)))));
+  const run=runDrafts.get(c.id);
+  if(!run){
+    const actions=h('div',{class:'actions'},external('Open project demo',c.spec.demoUrl),button('Start a fresh run',()=>task(async()=>beginRun(c)),'primary'));
+    c.runs.slice(-1).forEach(previous=>actions.append(button('Retest the latest run',()=>task(async()=>beginRun(c,previous.id)))));
     main.append(h('section',{class:'panel'},h('h2',{},'Run the steps, then record what happened.'),h('p',{},'Repro Relay does not inspect or control the linked website. Open it yourself and record each observation here.'),actions));
-    if (c.runs.length) main.append(notice('A retest uses the current case criteria. If you changed a step or precondition, the comparison will say “Criteria changed”.'));
+    if(c.runs.length) main.append(notice('A retest uses the current case criteria. Changed actions, expectations or preconditions are marked in the comparison.'));
     return;
   }
-  const run = draft;
-  main.append(notice(`In-progress run · ${run.spec.version || 'Version not recorded'} · ${run.spec.environment || 'Environment not recorded'}. This draft is in memory until you complete it.`, 'warning'));
-  if (run.baselineId) main.append(field('What changed in the fix?',run.fixNote,value => { run.fixNote=value; },{area:true,hint:'Describe the actual fix, not only “works now”.'}));
-  main.append(h('div',{class:'actions'},external('Open project demo',run.spec.demoUrl)));
-  const progress = h('p',{class:'progress-text',role:'status'}); const updateProgress = () => { progress.textContent = `${run.observations.filter(row => row.outcome !== 'not-tested').length} / ${run.spec.steps.length} steps have a recorded result. Blocked steps still need checking.`; }; updateProgress(); main.append(progress);
-  run.spec.steps.forEach((step,index) => {
-    const observation = run.observations.find(row => row.stepId === step.id)!;
-    const outcomes = h('div',{class:'outcome-controls',role:'group','aria-label':`Result for step ${index+1}`});
-    const resultButtons = (Object.keys(outcomeLabel) as Outcome[]).map(outcome => button(outcomeLabel[outcome],() => { observation.outcome=outcome; updateProgress(); resultButtons.forEach((node,i) => node.setAttribute('aria-pressed',String((Object.keys(outcomeLabel) as Outcome[])[i] === outcome))); },outcome));
-    resultButtons.forEach((node,index) => { node.setAttribute('aria-pressed',String((Object.keys(outcomeLabel) as Outcome[])[index] === observation.outcome)); outcomes.append(node); });
-    main.append(h('section',{class:'review-step'},h('span',{class:'step-number'},String(index+1).padStart(2,'0')),h('div',{class:'step-content'},h('h2',{},step.action),h('div',{class:'expected'},h('strong',{},'Expected'),h('p',{},step.expected)),outcomes,field('What did you actually observe?',observation.actual,value => { observation.actual=value; },{area:true}),c.evidence.length ? h('fieldset',{class:'attach-list'},h('legend',{},'Attach processed evidence'),...c.evidence.map(image => {
-      const input = h('input',{type:'checkbox',checked:observation.evidenceIds.includes(image.id),onchange:event => { const checked = (event.target as HTMLInputElement).checked; observation.evidenceIds = checked ? [...observation.evidenceIds,image.id] : observation.evidenceIds.filter(value => value !== image.id); }});
-      return h('label',{},input,image.caption || 'Processed screenshot');
-    })) : h('small',{},'Need a screenshot? Add processed evidence below. This run stays in memory.'))));
+  const checkpoint=checkpoints.get(c.id), baseline=c.runs.find(item=>item.id===run.baselineId);
+  main.append(h('section',{class:'checkpoint-panel'},
+    h('div',{class:'section-title'},h('h2',{},'Keep an unfinished review'),badge('In progress','warning')),
+    h('p',{},'Save a checkpoint to resume this run after reload. A draft is separate from completed history; nobody gets a green result just because it was saved.'),
+    h('p',{id:'checkpoint-state',role:'status'},runDirty.has(c.id) ? 'Draft has unsaved changes. Save a checkpoint before leaving.' : 'Checkpoint saved '+(checkpoint ? time(checkpoint.savedAt) : '')+'. You can resume after reload.'),
+    h('div',{class:'actions'},button('Save draft checkpoint',()=>task(async()=>{
+      await save(c,run);
+      say(runDirty.has(c.id) || dirty.has(c.id) ? 'The earlier checkpoint was saved. Newer edits are still unsaved.' : 'Draft checkpoint saved. Reloading will keep this unfinished review.',runDirty.has(c.id) || dirty.has(c.id) ? 'warning' : 'success');render();
+    }),'primary'),button('Download draft backup',()=>task(async()=>{
+      download(buildCheckpointBackup(c,run),fileStem(c.spec.title)+'.draft.repro.json','application/json');say('Draft backup prepared. Importing it makes a separate case with a resumable unfinished run.');
+    })),button('Preview draft backup',()=>task(async()=>draftPreview(c,run)),'quiet'))
+  ));
+  main.append(notice('Run captured on '+(run.spec.version || 'an unlabelled version')+' · '+(run.spec.environment || 'environment not recorded')+'. Case changes apply to your next run.'));
+  if(run.baselineId) main.append(field('What changed in the fix?',run.fixNote,value=>{run.fixNote=value;markRun(c.id);},{area:true,hint:'Describe the actual fix, not only “works now”.'}));
+  const progress=h('p',{class:'progress-text',role:'status'});
+  const updateProgress=()=>{progress.textContent=run.observations.filter(row=>row.outcome!=='not-tested').length+' / '+run.spec.steps.length+' steps have a recorded result. Blocked steps still need checking.';};
+  let cursor=-1;
+  const focusStep=(stepId:string)=>{
+    const heading=document.getElementById('review-'+stepId);
+    if(heading){heading.focus();heading.scrollIntoView({block:'start'});}
+    cursor=run.spec.steps.findIndex(step=>step.id===stepId);
+  };
+  main.append(h('div',{class:'review-tools'},external('Open project demo',run.spec.demoUrl),
+    selectField('Jump to step',run.spec.steps[0]!.id,run.spec.steps.map((step,index)=>({value:step.id,label:'Step '+(index+1)+' · '+step.action.slice(0,65)})),focusStep),
+    button('Next unchecked step',()=>{
+      const pending=run.spec.steps.map((step,index)=>({step,index,result:run.observations.find(row=>row.stepId===step.id)!})).filter(item=>['not-tested','blocked'].includes(item.result.outcome));
+      const next=pending.find(item=>item.index>cursor) || pending[0];
+      if(next) focusStep(next.step.id);else say('Every step has a pass or fail. Review the notes before completing this run.');
+    })
+  ));
+  updateProgress();main.append(progress);
+  run.spec.steps.forEach((step,index)=>{
+    const observation=run.observations.find(row=>row.stepId===step.id)!;
+    const outcomes=h('div',{class:'outcome-controls',role:'group','aria-label':'Result for step '+(index+1)});
+    const choices=Object.keys(outcomeLabel) as Outcome[];
+    const resultButtons=choices.map(outcome=>button(outcomeLabel[outcome],()=>{
+      observation.outcome=outcome;cursor=index;markRun(c.id);updateProgress();
+      resultButtons.forEach((node,i)=>node.setAttribute('aria-pressed',String(choices[i]===outcome)));
+    },outcome));
+    resultButtons.forEach((node,i)=>{node.setAttribute('aria-pressed',String(choices[i]===observation.outcome));outcomes.append(node);});
+    const oldStep=baseline?.spec.steps.find(item=>item.id===step.id), oldResult=baseline?.observations.find(row=>row.stepId===step.id);
+    const changed=oldStep && (oldStep.action!==step.action || oldStep.expected!==step.expected || baseline!.spec.preconditions!==run.spec.preconditions);
+    const context=baseline ? h('aside',{class:'baseline-hint'},
+      badge(oldResult ? 'Earlier: '+outcomeLabel[oldResult.outcome] : 'New step',oldResult?.outcome || 'neutral'),
+      h('p',{},oldResult?.actual || 'No earlier observation recorded.'),
+      changed ? h('details',{},h('summary',{},'Criteria changed — inspect the earlier step'),h('p',{},'Earlier action: '+oldStep.action),h('p',{},'Earlier expected: '+oldStep.expected),h('p',{},'Earlier setup: '+baseline.spec.preconditions)) : null
+    ) : null;
+    main.append(h('section',{class:'review-step'},h('span',{class:'step-number'},String(index+1).padStart(2,'0')),
+      h('div',{class:'step-content'},h('h2',{id:'review-'+step.id,tabindex:-1},step.action),context,
+        h('div',{class:'expected'},h('strong',{},'Expected'),h('p',{},step.expected)),outcomes,
+        field('What did you actually observe?',observation.actual,value=>{observation.actual=value;markRun(c.id);},{area:true}),
+        c.evidence.length ? h('fieldset',{class:'attach-list'},h('legend',{},'Attach processed evidence'),...c.evidence.map(image=>{
+          const input=h('input',{type:'checkbox',checked:observation.evidenceIds.includes(image.id),onchange:event=>{
+            const checked=(event.target as HTMLInputElement).checked;
+            observation.evidenceIds=checked ? [...new Set([...observation.evidenceIds,image.id])] : observation.evidenceIds.filter(value=>value!==image.id);markRun(c.id);
+          }});
+          return h('label',{},input,image.caption || 'Processed screenshot');
+        })) : h('small',{},'Add a processed screenshot below, then save a checkpoint to keep it with this draft.')
+      )
+    ));
   });
-  main.append(h('div',{class:'finish-bar'},h('p',{},'Completing freezes this run. Untested or blocked steps remain visible; they will not count as verified fixes.'),h('div',{class:'actions'},button('Complete & save run',() => task(async() => {
-    const completed = finishRun(c,run);
-    // Keep the completed result available even if the atomic storage transaction fails.
-    drafts.set(c.id,completed); dirty.add(c.id); runDrafts.delete(c.id);
-    try { await save(completed); say('Run completed and saved. Start another run to record a retest.'); }
-    finally { go(`/case/${c.id}/compare`); }
-  }),'primary'),button('Discard in-progress run',() => { if (confirm('Discard this unsaved run? Your completed runs stay intact.')) { runDrafts.delete(c.id); render(); } },'danger-quiet'))));
+  main.append(h('div',{class:'finish-bar'},h('p',{},'Completing freezes this run. Untested or blocked steps remain visible; they do not count as verified fixes.'),h('div',{class:'actions'},
+    button('Complete & save run',()=>task(async()=>{
+      const completed=finishRun(c,run);
+      // Immediately replace editable run controls. A failed save still leaves an exportable completed snapshot.
+      drafts.set(c.id,completed);markDirty(completed);runDrafts.delete(c.id);runDirty.delete(c.id);
+      go('/case/'+c.id+'/compare');render();
+      await save(completed,null);savedMessage(completed,'Run completed and saved. The unfinished checkpoint was removed atomically.');render();
+    }),'primary'),
+    button('Discard in-progress run',()=>task(async()=>{
+      if(!confirm('Discard this draft? Completed runs stay intact. Current case details will be saved.'))return;
+      await save(c,null);runDrafts.delete(c.id);runDirty.delete(c.id);runRevisions.delete(c.id);render();say('Unfinished review discarded. Completed history was kept.');
+    }),'danger-quiet')
+  )));
   main.append(evidencePanel(c));
 }
 function comparePage(main:HTMLElement,c:Capsule) {
-  main.append(h('section',{class:'handoff-bar'},h('div',{},h('h2',{},'Take the trail with you.'),h('p',{},'JSON is an editable backup. HTML is a read-only report with its processed images inside.')),exports(c)));
-  if (dirty.has(c.id)) main.append(h('div',{class:'actions'},button('Retry local save',() => task(async() => { await save(c); say('Unsaved work is now saved locally.'); render(); }),'primary')));
+  main.append(h('section',{class:'handoff-bar'},h('div',{},h('h2',{},'Take the trail with you.'),h('p',{},'JSON keeps an editable backup. HTML embeds processed images. Markdown brings the recorded trail into an issue.')),exports(c)));
+  const checks=handoffChecks(c);
+  main.append(h('section',{class:'panel handoff-checks'},h('div',{class:'section-title'},h('h2',{},'Before you hand it over'),badge(checks.filter(check=>check.complete).length+' / '+checks.length+' context checks','neutral')),h('p',{class:'muted'},'These are reminders about recorded context, not a release approval. A failing case can be ready to share.'),h('ul',{},...checks.map(check=>h('li',{},badge(check.complete ? 'Included' : 'Check',check.complete ? 'neutral' : 'warning'),h('div',{},h('strong',{},check.label),h('p',{},check.detail)))))));
+  if(runDrafts.has(c.id)) main.append(notice('An unfinished review is separate from these exports. Resume it or download its draft backup before leaving.','warning'));
+  if (dirty.has(c.id)) main.append(h('div',{class:'actions'},button('Retry local save',() => task(async() => { await save(c); savedMessage(c,'Unsaved work is now saved locally.'); render(); }),'primary')));
   if (!c.runs.length) { main.append(h('section',{class:'empty-state'},h('h2',{},'No completed runs yet.'),h('p',{},'Record a failure first. After a fix, retest it and compare the same steps.'),button('Record a run',() => go(`/case/${c.id}/run`),'primary'))); return; }
   const last = c.runs.at(-1)!;
   main.append(h('div',{class:'section-title'},h('h2',{},'Before → after'),button('Retest latest run',() => task(async() => beginRun(c,last.id)))));
   if (c.runs.length < 2) main.append(notice('You have the first observation. Add a retest after a fix to compare it.'));
   else {
-    let beforeId = last.baselineId || c.runs.at(-2)!.id, afterId = last.id;
+    let beforeId = last.baselineId || c.runs.at(-2)!.id, afterId = last.id, comparisonFilter='all';
     const entries = c.runs.map((run,index) => ({ value:run.id,label:`Run ${index+1} · ${run.spec.version || 'Unlabelled version'} · ${time(run.completedAt)}` }));
     const comparison = h('div',{class:'comparison-list'});
     const draw = () => {
@@ -184,12 +279,16 @@ function comparePage(main:HTMLElement,c:Capsule) {
       comparison.append(h('p',{class:'muted'},`${before.spec.version || 'Unlabelled version'} → ${after.spec.version || 'Unlabelled version'} · manual observations, not independent certification`));
       if (before.spec.environment !== after.spec.environment) comparison.append(notice(`Environment changed: ${before.spec.environment || 'not recorded'} → ${after.spec.environment || 'not recorded'}`,'warning'));
       if (before.spec.preconditions !== after.spec.preconditions) comparison.append(notice(`Starting conditions changed. Before: ${before.spec.preconditions || 'none recorded'}\nAfter: ${after.spec.preconditions || 'none recorded'}`,'warning'));
-      for (const row of compareRuns(before,after)) {
+      const rows=compareRuns(before,after);
+      comparison.append(h('div',{class:'comparison-totals'},...Object.entries(changeLabel).filter(([key])=>rows.some(row=>row.change===key)).map(([key,label])=>badge(rows.filter(row=>row.change===key).length+' · '+label,key))));
+      const visible=rows.filter(row=>comparisonFilter==='all' || (comparisonFilter==='resolved' ? row.change==='resolved' : !['resolved','unchanged'].includes(row.change)));
+      if(!visible.length) comparison.append(notice('No steps match this comparison filter.'));
+      for (const row of visible) {
         const oldStep = before.spec.steps.find(step => step.id === row.stepId), newStep = after.spec.steps.find(step => step.id === row.stepId);
-        comparison.append(h('article',{class:`comparison-card ${row.change}`},h('div',{class:'card-top'},h('h3',{},row.action),badge(changeLabel[row.change],row.change)),h('div',{class:'before-after'},h('div',{},h('p',{class:'eyebrow'},'BEFORE'),badge(row.before ? outcomeLabel[row.before] : 'Missing step',row.before || 'neutral'),h('p',{},row.beforeActual || 'No observation recorded'),row.change === 'criteria-changed' ? h('p',{class:'criteria'},'Expected: ',oldStep?.expected || 'Missing step') : null),h('div',{},h('p',{class:'eyebrow'},'AFTER'),badge(row.after ? outcomeLabel[row.after] : 'Missing step',row.after || 'neutral'),h('p',{},row.afterActual || 'No observation recorded'),row.change === 'criteria-changed' ? h('p',{class:'criteria'},'Expected: ',newStep?.expected || 'Missing step') : null))));
+        comparison.append(h('article',{class:`comparison-card ${row.change}`},h('div',{class:'card-top'},h('h3',{},row.action),badge(changeLabel[row.change],row.change)),h('div',{class:'before-after'},h('div',{},h('p',{class:'eyebrow'},'BEFORE'),badge(row.before ? outcomeLabel[row.before] : 'Missing step',row.before || 'neutral'),h('p',{},row.beforeActual || 'No observation recorded'),row.change === 'criteria-changed' ? h('div',{class:'criteria'},h('p',{},'Action: ',oldStep?.action || 'Missing step'),h('p',{},'Expected: ',oldStep?.expected || 'Missing step')) : null),h('div',{},h('p',{class:'eyebrow'},'AFTER'),badge(row.after ? outcomeLabel[row.after] : 'Missing step',row.after || 'neutral'),h('p',{},row.afterActual || 'No observation recorded'),row.change === 'criteria-changed' ? h('div',{class:'criteria'},h('p',{},'Action: ',newStep?.action || 'Missing step'),h('p',{},'Expected: ',newStep?.expected || 'Missing step')) : null))));
       }
     };
-    main.append(h('div',{class:'form-grid compare-selects'},selectField('Before run',beforeId,entries,value => { beforeId=value; draw(); }),selectField('After run',afterId,entries,value => { afterId=value; draw(); })),comparison); draw();
+    main.append(h('div',{class:'form-grid compare-selects'},selectField('Before run',beforeId,entries,value => { beforeId=value; draw(); }),selectField('After run',afterId,entries,value => { afterId=value; draw(); })),h('div',{class:'comparison-filters'},selectField('Show comparison steps',comparisonFilter,[{value:'all',label:'All steps'},{value:'attention',label:'Needs attention / changed criteria'},{value:'resolved',label:'Passed on retest'}],value=>{comparisonFilter=value;draw();})),comparison); draw();
   }
   main.append(h('h2',{},'Completed run history'));
   [...c.runs].reverse().forEach(run => main.append(h('details',{class:'run-history'},h('summary',{},`Run ${c.runs.indexOf(run)+1} · ${run.spec.version || 'Version not recorded'} · ${time(run.completedAt)}`),h('p',{},'Environment: ',run.spec.environment || 'Not recorded'),h('div',{class:'actions'},external('Demo at capture',run.spec.demoUrl),external('Source at capture',run.spec.sourceUrl)),h('p',{},'Before you begin: ',run.spec.preconditions || 'Not recorded'),run.fixNote ? h('p',{},'Fix note: ',run.fixNote) : null,...run.spec.steps.map(step => {
@@ -198,11 +297,11 @@ function comparePage(main:HTMLElement,c:Capsule) {
   }),button('Retest this run',() => task(async() => beginRun(c,run.id))))));
   main.append(evidencePanel(c),h('details',{class:'danger-zone'},h('summary',{},'Remove this local case'),h('p',{},'Export a backup before deletion. This affects only this browser.'),button('Delete case from this browser',() => task(async() => {
     if (!confirm(`Delete “${c.spec.title}” and its runs from this browser? This cannot be undone here. Export first.`)) return;
-    await store.remove(c.id); saved.delete(c.id); drafts.delete(c.id); dirty.delete(c.id); runDrafts.delete(c.id); say('Local case deleted. Any downloaded backups are unaffected.'); go('/');
+    await store.remove(c.id,saved.get(c.id)?.updatedAt ?? null); saved.delete(c.id); drafts.delete(c.id); dirty.delete(c.id); runDrafts.delete(c.id); checkpoints.delete(c.id);runDirty.delete(c.id);runRevisions.delete(c.id);saveSession.forget(c.id);say('Local case deleted. Any downloaded backups are unaffected.'); go('/');
   }),'danger')));
 }
 function evidenceFigure(image:Evidence) {
-  return h('figure',{class:'evidence-figure'},h('img',{src:image.png,alt:image.caption || 'Processed screenshot',width:image.width,height:image.height,loading:'lazy'}),h('figcaption',{},image.caption || 'Processed screenshot',h('details',{},h('summary',{},`${image.width} × ${image.height} · SHA-256`),h('code',{},image.sha256))));
+  return h('figure',{class:'evidence-figure'},h('img',{src:image.png,alt:image.caption || 'Processed screenshot',width:image.width,height:image.height,loading:'lazy'}),h('figcaption',{},image.caption || 'Processed screenshot',h('details',{},h('summary',{},`${image.width} × ${image.height} · SHA-256`),h('code',{},image.sha256))),button('Download processed PNG',()=>task(async()=>{download(new Blob([new Uint8Array(pngBytes(image.png)).buffer],{type:'image/png'}),evidenceFilename(image.id),'image/png');say('Processed PNG prepared. Inspect it before attaching it to an issue.');}),'quiet'));
 }
 function evidencePanel(c:Capsule): HTMLElement {
   const panel = h('section',{class:'panel evidence-panel'},h('div',{class:'section-title'},h('h2',{},'Private evidence'),badge(`${c.evidence.length} / ${LIMITS.images}`)),h('p',{},'PNG / JPEG · up to 5 MB and 8 megapixels. Processed PNGs have a 1600px maximum edge. Only processed images are saved or exported.'),h('p',{class:'muted'},'Cover private details with opaque rectangles. Redaction cannot be undone after processing. Your original file stays on your own device.'));
@@ -271,14 +370,14 @@ function about(main:HTMLElement) {
     ['03','Fixed','Explain the actual change. Start a new retest linked to an earlier run. The earlier run keeps its original steps and results.'],
     ['04','Checked again','Compare matching step IDs. If the expected result or setup changed, say so. Export the trail for somebody else to inspect.'],
   ].map(([number,title,description]) => h('article',{class:'panel'},h('span',{class:'step-number'},number),h('h2',{},title),h('p',{},description)))));
-  main.append(h('section',{class:'panel'},h('h2',{},'Where the data lives'),h('p',{},'Cases are stored in IndexedDB in this browser profile and site. There is no server, login, telemetry or automatic synchronization. Draft edits and in-progress runs are only in memory until explicitly saved. Clearing browser data, private browsing or moving to another browser can lose local work. Export JSON backups.'),h('p',{},'Offline app use is available after a production visit finishes caching. Downloaded HTML reports work offline immediately and contain no scripts. Links to a project require the internet if you choose to open them.'),h('h2',{},'What the trail proves'),h('p',{},'Completed run snapshots cannot be edited through the app. JSON backups remain editable files: they are not signed audit records. A pass records a person’s observation, not an independent approval. SHA-256 helps detect altered image bytes, but does not prove authenticity or authorship.'),h('h2',{},'Limits that keep a browser tool manageable'),h('p',{},'20 saved cases, 12 steps per case, 20 completed runs and 6 processed screenshots per case. Source images: PNG/JPEG, 5 MB, 8 megapixels. Processed images: PNG, 1600px maximum edge, 2 MB. JSON imports: 20 MB. Stored case data: 40 MB.'),h('h2',{},'Built openly'),h('p',{},'Repro Relay was implemented with substantial Codex assistance. Its demo data is fictional, and its bugs, tests and browser checks are documented in the public repository. No claim is made about independent human authorship or competition rewards.'),external('Source & setup notes','https://github.com/aaravkatiyar55-gif/repro-relay')));
+  main.append(h('section',{class:'panel'},h('h2',{},'Where the data lives'),h('p',{},'Cases are stored in IndexedDB in this browser profile and site. There is no server, login, telemetry or automatic synchronization. Case edits stay in memory until saved. In-progress runs can be saved as separate checkpoints and resumed after reload, or downloaded as draft backups. Edits after a checkpoint need another save. Clearing browser data, private browsing or moving to another browser can lose local work. Export JSON backups.'),h('p',{},'Offline app use is available after a production visit finishes caching. Downloaded HTML reports work offline immediately and contain no scripts. Links to a project require the internet if you choose to open them.'),h('h2',{},'What the trail proves'),h('p',{},'Completed run snapshots cannot be edited through the app. JSON backups remain editable files: they are not signed audit records. A pass records a person’s observation, not an independent approval. SHA-256 helps detect altered image bytes, but does not prove authenticity or authorship.'),h('h2',{},'Limits that keep a browser tool manageable'),h('p',{},'20 saved cases, 12 steps per case, 20 completed runs and 6 processed screenshots per case. Source images: PNG/JPEG, 5 MB, 8 megapixels. Processed images: PNG, 1600px maximum edge, 2 MB. JSON imports: 20 MB. Stored cases and checkpoints together: 40 MB.'),h('h2',{},'Built openly'),h('p',{},'Repro Relay was implemented with substantial Codex assistance. Its demo data is fictional, and its bugs, tests and browser checks are documented in the public repository. No claim is made about independent human authorship or competition rewards.'),external('Source & setup notes','https://github.com/aaravkatiyar55-gif/repro-relay')));
 }
 
 document.querySelector('.skip-link')?.addEventListener('click',event => { event.preventDefault(); document.querySelector<HTMLElement>('#main')?.focus(); });
 window.addEventListener('hashchange',() => { render(); document.querySelector<HTMLElement>('h1')?.focus({preventScroll:true}); window.scrollTo(0,0); });
-window.addEventListener('beforeunload',event => { if (dirty.size || runDrafts.size || lab.draft) { event.preventDefault(); event.returnValue=''; } });
+window.addEventListener('beforeunload',event => { if (dirty.size || runDirty.size || lab.draft || imageCleanup) { event.preventDefault(); event.returnValue=''; } });
 render();
-store.list().then(result => { result.cases.forEach(c => saved.set(c.id,c)); if (result.warnings.length) storageProblem=result.warnings.join(' '); }).catch(error => { storageProblem=errorText(error); }).finally(() => { loaded=true; render(); });
+store.list().then(result => { result.cases.forEach(c => saved.set(c.id,c));result.checkpoints.forEach(checkpoint=>{checkpoints.set(checkpoint.caseId,checkpoint);runDrafts.set(checkpoint.caseId,clone(checkpoint.run));});if (result.warnings.length) storageProblem=result.warnings.join(' '); }).catch(error => { storageProblem=errorText(error); }).finally(() => { loaded=true; render(); });
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').then(() => navigator.serviceWorker.ready).then(() => { offlineReady=true; const label=document.querySelector('.local-label'); if (label) label.textContent='Offline copy ready'; }).catch(() => { /* Local cases still work; no offline-ready claim is shown. */ });
 }

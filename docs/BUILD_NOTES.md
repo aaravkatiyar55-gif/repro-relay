@@ -25,6 +25,25 @@ This is a new implementation of a familiar problem. Bug-reporting products alrea
 7. A report could embed the same screenshot repeatedly when several runs referenced it. The report now embeds each processed image once in its evidence index and links observations to that image. A regression check uses nine references across three runs and expects one embedded image.
 8. Fragment links in the sandboxed `srcdoc` preview initially resolved against the outer app. The preview now uses `about:srcdoc#...` links, as described in [MDN's iframe documentation](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe#embedding_source_code_in_an_iframe). Downloaded reports retain ordinary local fragment links. The report still has no scripts.
 
+## The recovery and handoff round
+
+The next gap was what happened between starting a review and completing it. Keeping completed history safe was useful, but an interrupted review still lived only in memory. A separate checkpoint store now keeps the unfinished run without making it look completed. Saving the case and checkpoint uses one transaction. Completing the run adds its snapshot and removes the checkpoint in that same transaction. Existing v1 case storage upgrades to v2 without deleting its cases.
+
+Reload and draft import were tried through the interface. A saved Blocked flag and its exact note returned after reload, with zero completed runs. The draft backup then imported into a separate case with the same internal step ID. Only after that recovery check was performed was the imported review marked Pass and completed. The original unfinished case was kept.
+
+Two saves needed more care too:
+
+- An older tab could previously replace a newer saved case. Each save now compares its expected timestamp inside the storage transaction. In the two-tab browser check, the first tab's title stayed saved; the second tab received a conflict message and kept its edit. Saving a separate copy kept that second version as well.
+- A save can be slow enough for more typing to happen before it completes. The saved snapshot and the live edit now have separate revision tracking. The automated check starts a real asynchronous IndexedDB save, edits the live case, then verifies that only the earlier snapshot was stored and the newer edit remains unsaved.
+
+Completed run history and its referenced processed evidence are also checked before an update, so a stale or changed record cannot silently replace them. Invalid checkpoints are skipped with a warning and kept in storage; the saved case is left intact. This does not make editable JSON a signed audit record.
+
+The handoff round adds a Markdown preview for issues and individual processed PNG downloads. Markdown uses the latest completed run's captured build links and criteria, even when today's case has changed. A retest includes its baseline, fix note and earlier criteria. User-entered Markdown syntax and raw HTML are escaped. The app creates no issue and uploads no attachment.
+
+The context reminders needed to work before a new case was valid, too. Calling the strict export validator there caused the empty-case view to fail; context checks now explain missing fields, while export and storage still use strict validation. Failed and blocked results remain distinct. Comparison filters show zero passed fixes for the changed/blocked QA run and three for the matching broken-v1 → fixed-v2 run.
+
+The browser download-path helper could not return a usable draft file. A read-only draft preview gives a copy fallback. Its complete visible JSON was saved as a QA artifact and imported through the actual file picker. The download button itself is not claimed as a verified filesystem path.
+
 ## The fictional demonstration
 
 The Little Orbit Club board runs three deliberate bugs. Broken v1 allows duplicate Alex registrations, misses a query with surrounding spaces and checks Mina when Sam is the only visible filtered row. Fixed v2 checks repeated names, trims search input and uses stable row IDs.
@@ -36,3 +55,5 @@ Both implementations actually run. Demo results start as “Not tested”; the a
 The product concept and scope were discussed with Aarav. Codex implemented most of the application, tests, build setup and documentation, and operated the browser checks. This is substantial AI assistance. Commit messages and the README disclose that assistance. Screenshots are actual app captures; the demo uses fictional names and data. No other project was copied to manufacture a new submission.
 
 Wall-clock duration, an open editor and accepted Hackatime time are different things. `.wakatime-project` sets the intended label to `repro-relay`; it does not generate time. No synthetic heartbeats, filler edits, idle waiting or transferred hours are used. Stardance eligibility and rewards need their own verified evidence.
+
+The requested native VS Code editing could not proceed: fresh launches and a helper reset still rejected editor input, and native screenshot capture timed out. Aarav then explicitly authorized direct source updates and tests. This recovery round uses that approval and does not claim two hours of manual VS Code work.

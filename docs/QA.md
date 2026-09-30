@@ -4,7 +4,7 @@ Checks below refer to this implementation, not to an independently certified pro
 
 ## Automated checks
 
-Run `npm run verify` on Node 24. The native Node suite covers:
+Run `npm run verify` on Node 24. All 28 tests pass. The original 15 core tests cover:
 
 1. Snapshot isolation and refusing a duplicate completion.
 2. Reordered stable step IDs matching the original failure.
@@ -21,6 +21,22 @@ Run `npm run verify` on Node 24. The native Node suite covers:
 13. Escaping script-like report text, excluding scripts/remote assets and keeping captured build links after current links change.
 14. The three actual broken/fixed demo implementations.
 15. Repeated evidence references across three completed runs embedding one image with nine working report links.
+
+The 13 recovery and handoff tests cover:
+
+1. Two independent store connections refusing a stale save and preserving both versions through a separate copy.
+2. A new edit during an actual asynchronous save remaining unsaved while only the captured snapshot is stored.
+3. Save timestamps advancing even when the previous timestamp is ahead of the current clock.
+4. An IndexedDB v1 database upgrading with its existing case intact.
+5. An unfinished review surviving a new connection and completion removing its checkpoint atomically.
+6. Stale checkpoint, completion and deletion transactions leaving both saved records untouched.
+7. Completed run history refusing silent replacement.
+8. Referenced completed evidence preserving its caption and processed bytes; Markdown references attachments without embedding their data URLs.
+9. A damaged checkpoint being skipped and retained while its case stays intact.
+10. Draft backups importing as separate cases, preserving internal IDs, and rejecting invalid references, baselines and extra fields.
+11. Case deletion also removing its checkpoint in one transaction.
+12. Context reminders working for an empty case, treating failures as valid feedback and blocked checks as unfinished.
+13. Issue Markdown using frozen build links, escaped script-like text, explicit untested results and earlier criteria.
 
 The production build also checks local asset references, script CSP, service-worker syntax, existing precache assets and request scope. `npm ci --ignore-scripts` installs only locked development dependencies. No runtime packages are installed.
 
@@ -61,6 +77,31 @@ The automation download-path API timed out even though Chromium reported complet
 The browser tool blocks `file:` navigation. The saved report was not opened from disk through that tool; no workaround was used for the blocked navigation. Its sandboxed preview was tested offline, its complete HTML was validated, its embedded processed image was decoded and its lack of scripts/remote assets was checked. Native filesystem opening can be checked in an ordinary browser by double-clicking the downloaded HTML.
 
 Storage-open and case-limit failures are automated tests. A real browser disk-quota exhaustion was not induced. No external websites were scanned or replayed. Mobile validation is a 360px Chromium viewport check, not a claim of testing every phone or assistive technology.
+
+## Recovery round: local production browser checks
+
+These checks used the built production app on `127.0.0.1:4173`, with fictional QA cases. Existing test cases were preserved.
+
+| Check | Observed result |
+| --- | --- |
+| Save and reload checkpoint | The same Blocked result and exact note resumed; completed history still contained zero runs |
+| Home resume control | Saved review checkpoint badge and Resume review opened that unfinished run |
+| Draft preview round trip | Complete visible preview JSON imported through the file picker as a different case ID with the same step ID and unfinished result |
+| Complete recovered review | The imported copy was marked Pass only after the recovery/import check; one completed run was saved and its checkpoint removed |
+| Two-tab conflict | First tab's saved title stayed intact; older tab's save was refused and its input retained |
+| Separate-copy recovery | The older tab's edit and completed history were saved under a new case ID; reloading the original retained the first title |
+| Issue Markdown preview | Captured version, environment, links and the actual completed note appeared in the visible preview |
+| Keyboard navigation | Enter on Next unchecked step focused the matching step heading |
+| Offline checkpoint | Cached shell reloaded offline and recovered the checkpoint and exact note; networking was restored afterwards |
+| Mobile recovery view | Actual viewport, page width and main width were each 360px, with no horizontal overflow; viewport override was cleared afterwards |
+| Comparison filters | Changed/blocked/untested QA run: zero Passed on retest cards. Matching broken-v1 → fixed-v2: three |
+| Console | No warning/error entries observed in this local recovery session |
+
+The new draft download wait/path helper timed out. The visible preview round trip verifies portable content and import, not a downloaded filesystem path. The save-during-typing check is an automated store/session test; it was not timed against browser input. Individual PNG download content is covered by byte validation, but its filesystem path was not verified in this browser session.
+
+The browser-wide viewport setting did not initially resize the in-app browser. Mobile verification used the documented tab CDP device-metrics capability instead. The recorded DOM widths and an actual 360 × 800 PNG capture confirm the applied size. The screenshot was inspected and kept without visual editing. Native desktop capture is not the source of these images.
+
+Actual captures: [draft recovery](screenshots/draft-recovery.jpg), [issue handoff](screenshots/issue-handoff.jpg), [save conflict](screenshots/save-conflict.jpg), [360px recovery](screenshots/mobile-draft-recovery.png).
 
 ## Fresh public origin
 
