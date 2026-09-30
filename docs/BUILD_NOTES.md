@@ -22,6 +22,8 @@ This is a new implementation of a familiar problem. Bug-reporting products alrea
 4. A mobile success toast squeezed “Dismiss” into a narrow column. The button now keeps its width.
 5. Starting another retest could replace an unfinished run. The app now returns to that existing draft and explains that it needs to be completed or discarded first.
 6. Fresh production inspection caught horizontal overflow on the home page: a general input rule overrode the hidden import input's width. A more specific rule now keeps that input inside its control, and it is excluded from the tab order. Desktop and 360px home pages are checked after the fix.
+7. A report could embed the same screenshot repeatedly when several runs referenced it. The report now embeds each processed image once in its evidence index and links observations to that image. A regression check uses nine references across three runs and expects one embedded image.
+8. Fragment links in the sandboxed `srcdoc` preview initially resolved against the outer app. The preview now uses `about:srcdoc#...` links, as described in [MDN's iframe documentation](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe#embedding_source_code_in_an_iframe). Downloaded reports retain ordinary local fragment links. The report still has no scripts.
 
 ## The fictional demonstration
 

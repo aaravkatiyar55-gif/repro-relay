@@ -20,6 +20,7 @@ Run `npm run verify` on Node 24. The native Node suite covers:
 12. PNG/JPEG signature, truncation and pre-decode size limits.
 13. Escaping script-like report text, excluding scripts/remote assets and keeping captured build links after current links change.
 14. The three actual broken/fixed demo implementations.
+15. Repeated evidence references across three completed runs embedding one image with nine working report links.
 
 The production build also checks local asset references, script CSP, service-worker syntax, existing precache assets and request scope. `npm ci --ignore-scripts` installs only locked development dependencies. No runtime packages are installed.
 
@@ -48,6 +49,7 @@ The production build also checks local asset references, script CSP, service-wor
 | Mobile comparison | 360px viewport, no horizontal overflow or out-of-bounds controls |
 | Home-page overflow fix | Locally: 1280px viewport / 1265px page and 360px viewport / 345px page; hidden input is 1px |
 | Captured build links | Labelled synthetic fixture: run history and report retained v1 links while the current case used v2; all fixture outcomes were Not tested |
+| Compact evidence report | Actual 3-run QA report: 1 image / 1 reference, 410,375 bytes instead of 812,923 bytes. Preview anchor reached the decoded 1265 × 712 image |
 | Offline app | Cached production shell reloaded with network emulation set offline |
 | Offline report preview | Script-free report and embedded image displayed while offline |
 | JSON / HTML downloads | Browser download events reported completion |
@@ -64,4 +66,6 @@ Storage-open and case-limit failures are automated tests. A real browser disk-qu
 
 The GitHub Pages deployment was opened with no Repro Relay cases already saved on that origin. Broken v1 reproduced duplicate Alex rows, zero results for the spaced Mina query and Mina checked instead of filtered Sam. Fixed v2 produced one Alex row, Mina as the single match and only Sam checked. The app shell reloaded while that tab's network was emulated offline; networking was restored afterwards. No warning/error console entries were observed in that session. The public home screenshot was also used as the Stardance banner.
 
-The final overflow correction and snapshot-link display receive a focused public check after the updated deployment. Tracker and mission status are recorded in [SHIP_STATUS.md](SHIP_STATUS.md).
+The final overflow correction was also checked on the public origin at desktop and 360px. The latest shared-image export receives a focused public check after deployment. Tracker and mission status are recorded in [SHIP_STATUS.md](SHIP_STATUS.md).
+
+The final report preview uses `about:srcdoc#...` anchors; downloaded HTML uses local `#...` anchors. The generated content is otherwise the same. Frame-scoped locator clicks/keypresses timed out in the automation interface. The browser accessibility click successfully activated the visible link: the frame URL acquired the evidence fragment, and the decoded image reached the top of the frame. This was a tool interaction limitation, not a claimed unsuccessful pass.

@@ -14,7 +14,7 @@ Screenshots can be processed before they become evidence. Drag opaque rectangles
 
 The handoff is an editable JSON backup or a script-free HTML report with processed images inside it. Valid imports create separate cases. Invalid JSON and a tampered image digest left existing cases intact. The report preview and cached app were tried offline. The browser automation tool blocks opening local `file:` URLs, so the downloaded report was not opened from disk through that tool; the exact complete HTML, embedded image and offline preview were checked instead.
 
-The final UI pass fixed a skip-link routing problem, a squeezed mobile toast, replacement of an unfinished retest and a hidden file input that caused horizontal overflow. Run history and reports keep the original build links too. The 14 core tests, strict TypeScript check and offline production build checks pass. The README includes setup instructions, real decisions and the practical testing limits.
+The final UI pass fixed a skip-link routing problem, a squeezed mobile toast, replacement of an unfinished retest and a hidden file input that caused horizontal overflow. Run history and reports keep the original build links too. Shared evidence is embedded once in the HTML report, with links from each relevant observation. The 15 core tests, strict TypeScript check and offline production build checks pass. The README includes setup instructions, real decisions and the practical testing limits.
 
 Aarav chose the direction and scope. Codex implemented most of the application, tests, build setup and documentation, and operated the recorded browser checks. This is substantially AI-assisted work. No human-only authorship, eligible duration, reviewer approval or Stardust reward is claimed.
 
@@ -29,6 +29,8 @@ Aarav chose the direction and scope. Codex implemented most of the application, 
 - [Changed criteria and incomplete retest](screenshots/criteria-comparison.jpg)
 - [Redaction editor](screenshots/redaction-preview.jpg)
 - [Offline report preview](screenshots/offline-report.jpg)
+- [Compact report with linked processed evidence](screenshots/compact-report.jpg)
 - [360px comparison](screenshots/mobile-comparison.jpg)
+- [360px home page](screenshots/mobile-home.jpg)
 
 The comparison with changed criteria is a clearly labelled QA fixture, not another released board version. All data shown is fictional.

@@ -100,6 +100,24 @@ test('HTML reports escape script-like text, contain processed images and have no
   assert.ok(html.includes('href="https://example.com/source-v1"')); assert.ok(html.includes('href="https://example.com/source-v2"')); assert.equal(saved.runs[0].spec.sourceUrl,'https://example.com/source-v1');
   assert.ok(html.includes('&lt;script&gt;')); assert.ok(html.includes(tinyPng)); assert.ok(html.includes("default-src 'none'")); assert.ok(!/<script[\s>]/i.test(html)); assert.ok(!/<img[^>]+src="https?:/i.test(html)); assert.ok(!html.includes('onerror=alert(1)>')); assert.ok(html.includes('Not tested')); assert.ok(!html.includes('<script>oops'));
 });
+test('shared evidence is embedded once with working references across completed runs', async () => {
+  let c = await withImage();
+  for (let index=0; index<3; index++) {
+    const draft = startRun(c,c.runs.at(-1)?.id);
+    draft.observations.forEach(row => { row.evidenceIds = ['shot']; });
+    c = finishRun(c,draft);
+  }
+  const html = buildReport(c);
+  assert.equal((html.match(/<img\s/g) || []).length,1);
+  assert.equal((html.match(/href="#evidence-shot"/g) || []).length,9);
+  assert.equal((html.match(/id="evidence-shot"/g) || []).length,1);
+  assert.equal(html.split(tinyPng).length - 1,1);
+  assert.ok(html.includes('SHA-256 of processed bytes'));
+  const preview = buildReport(c,true);
+  assert.equal((preview.match(/href="about:srcdoc#evidence-shot"/g) || []).length,9);
+  assert.equal(preview.replaceAll('about:srcdoc#evidence-','#evidence-'),html);
+});
+
 test('all three fictional bugs fail in broken mode and pass with the actual fixed implementation', () => {
   let broken = register(register(seedRows(),'Alex','broken'),'Alex','broken'); let fixed = register(register(seedRows(),'Alex','fixed'),' Alex ','fixed');
   assert.equal(broken.filter(row => row.name === 'Alex').length,2); assert.equal(fixed.filter(row => row.name === 'Alex').length,1);

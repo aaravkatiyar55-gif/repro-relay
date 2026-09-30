@@ -58,7 +58,7 @@ npm run verify
 npm run preview
 ```
 
-`verify` runs 14 core tests, strict TypeScript checking, the production build and checks on the generated offline shell. The cases include snapshot isolation, comparison edge cases, malformed imports, storage failures, safe report text and opaque redaction. Browser checks cover the real demo, reloads, image processing, imports, keyboard controls, mobile layout and offline previews. [QA.md](docs/QA.md) records what was tested and what still has a practical limit.
+`verify` runs 15 core tests, strict TypeScript checking, the production build and checks on the generated offline shell. The cases include snapshot isolation, comparison edge cases, malformed imports, storage failures, safe report text, shared-image exports and opaque redaction. Browser checks cover the real demo, reloads, image processing, imports, keyboard controls, mobile layout and offline previews. [QA.md](docs/QA.md) records what was tested and what still has a practical limit.
 
 ## Where things live
 

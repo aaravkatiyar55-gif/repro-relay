@@ -4,13 +4,14 @@ Updated 30 September 2026. This record separates the working product from tracke
 
 ## Product
 
-- Local production build, strict TypeScript, 14 core tests and offline build checks pass.
+- Local production build, strict TypeScript, 15 core tests and offline build checks pass.
 - The three deliberate failures and corresponding fixes were checked in the browser.
 - Snapshot comparison, private evidence processing, valid/invalid imports, keyboard flow and offline preview checks are recorded in [QA.md](QA.md).
 - Source, setup instructions, assistance disclosure, original banner and actual app screenshots are included.
 - [Public source](https://github.com/aaravkatiyar55-gif/repro-relay) and [live app](https://aaravkatiyar55-gif.github.io/repro-relay/) are available. The initial [Pages verification and deployment](https://github.com/aaravkatiyar55-gif/repro-relay/actions/runs/36704846474) succeeded.
 - On the fresh public origin, all three broken failures reproduced and all three corresponding fixed behaviors passed. The deployed shell reloaded offline, networking was restored, and no warning/error console entries were observed in that session.
-- A final home-page overflow fix and captured-link display are locally verified; final deployment verification is recorded below after the updated build goes live.
+- The [updated Pages deployment](https://github.com/aaravkatiyar55-gif/repro-relay/actions/runs/36706283596) passed. Public layout checks confirmed a 1280px viewport / 1265px page and 360px viewport / 345px page. The hidden input is 1px. The updated bundle also reloaded offline; emulation was cleared and networking restored. Captured v1 links remain in the run history/report beside the current case's v2 links.
+- The final shared-image report optimization is verified locally and receives a focused production check after deployment.
 
 ## Tracker and submission
 
