@@ -30,6 +30,8 @@ Aarav chose the direction and scope. Codex implemented most of the application, 
 - [Redaction editor](screenshots/redaction-preview.jpg)
 - [Offline report preview](screenshots/offline-report.jpg)
 - [Compact report with linked processed evidence](screenshots/compact-report.jpg)
+- [Final public report preview](screenshots/public-report.jpg)
+- [Final public interactive demo](screenshots/public-demo.jpg)
 - [360px comparison](screenshots/mobile-comparison.jpg)
 - [360px home page](screenshots/mobile-home.jpg)
 
