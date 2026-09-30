@@ -94,7 +94,10 @@ test('image headers are size checked before decoding; fake formats, truncated JP
 });
 test('HTML reports escape script-like text, contain processed images and have no scripts or remote resources', async () => {
   const c = await withImage(); c.spec.title = '<script>alert("test")</script>'; c.spec.summary = '<img src=x onerror=alert(1)>'; c.spec.demoUrl = 'https://example.com/?q="evil"';
-  const draft = startRun(c); draft.observations[0].evidenceIds = ['shot']; draft.observations[0].actual = '</p><script>oops</script>'; const html = buildReport(finishRun(c,draft));
+  c.spec.sourceUrl = 'https://example.com/source-v1';
+  const draft = startRun(c); draft.observations[0].evidenceIds = ['shot']; draft.observations[0].actual = '</p><script>oops</script>';
+  const saved = finishRun(c,draft); saved.spec.sourceUrl = 'https://example.com/source-v2'; const html = buildReport(saved);
+  assert.ok(html.includes('href="https://example.com/source-v1"')); assert.ok(html.includes('href="https://example.com/source-v2"')); assert.equal(saved.runs[0].spec.sourceUrl,'https://example.com/source-v1');
   assert.ok(html.includes('&lt;script&gt;')); assert.ok(html.includes(tinyPng)); assert.ok(html.includes("default-src 'none'")); assert.ok(!/<script[\s>]/i.test(html)); assert.ok(!/<img[^>]+src="https?:/i.test(html)); assert.ok(!html.includes('onerror=alert(1)>')); assert.ok(html.includes('Not tested')); assert.ok(!html.includes('<script>oops'));
 });
 test('all three fictional bugs fail in broken mode and pass with the actual fixed implementation', () => {

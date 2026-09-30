@@ -9,7 +9,8 @@ function link(label: string, value: string): string { const url = safeUrl(value)
 function runHtml(run: Run, capsule: Capsule, index: number): string {
   const baseline = capsule.runs.find(item => item.id === run.baselineId);
   const comparison = baseline ? `<h3>Compared with run ${capsule.runs.indexOf(baseline)+1}</h3><ul>${compareRuns(baseline,run).map(row => `<li><strong>${e(changeLabel[row.change])}</strong> — ${e(row.action)}<br>Before: ${e(row.before ? outcomeLabel[row.before] : 'Missing')} · After: ${e(row.after ? outcomeLabel[row.after] : 'Missing')}</li>`).join('')}</ul>` : '';
-  return `<section><h2>Run ${index + 1} · ${e(run.spec.version || 'Version not recorded')}</h2><p>${e(run.completedAt)} · ${e(run.spec.environment || 'Environment not recorded')}</p><p><strong>Preconditions:</strong> ${e(run.spec.preconditions || 'None recorded')}</p>${run.fixNote ? `<p><strong>Fix note:</strong> ${e(run.fixNote)}</p>` : ''}<ol>${run.spec.steps.map(step => {
+  const snapshotLinks = [link('Demo at capture',run.spec.demoUrl),link('Source at capture',run.spec.sourceUrl)].filter(Boolean).join(' · ');
+  return `<section><h2>Run ${index + 1} · ${e(run.spec.version || 'Version not recorded')}</h2><p>${e(run.completedAt)} · ${e(run.spec.environment || 'Environment not recorded')}</p>${snapshotLinks ? `<p>${snapshotLinks}</p>` : ''}<p><strong>Preconditions:</strong> ${e(run.spec.preconditions || 'None recorded')}</p>${run.fixNote ? `<p><strong>Fix note:</strong> ${e(run.fixNote)}</p>` : ''}<ol>${run.spec.steps.map(step => {
     const result = run.observations.find(row => row.stepId === step.id)!;
     return `<li><h3>${e(step.action)}</h3><p><strong>Expected:</strong> ${e(step.expected)}</p><p><strong>${e(outcomeLabel[result.outcome])}:</strong> ${e(result.actual || 'No observation recorded')}</p>${result.evidenceIds.map(imageId => {
       const image = capsule.evidence.find(item => item.id === imageId)!;

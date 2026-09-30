@@ -91,7 +91,7 @@ function render() {
 function home(main:HTMLElement) {
   main.append(pageHeading('The inspection desk','A bug needs a trail.','Write the steps. Capture the failure. Come back after the fix and check the same thing again.',[button('New case',addCase,'primary')]));
   main.append(h('section',{class:'demo-callout'},h('div',{},h('p',{class:'eyebrow'},'ONE MINUTE · THREE REAL FAILURES'),h('h2',{},'The signup board that gets it wrong.'),h('p',{},'Catch a duplicate, a search miss and a row that checks the wrong person. Then try their fixes.')),button('Open the interactive demo →',() => go('/demo'),'primary')));
-  const importInput = h('input',{type:'file',accept:'.json,application/json','aria-label':'Choose a Repro Relay JSON backup',class:'file-input'});
+  const importInput = h('input',{type:'file',accept:'.json,application/json','aria-label':'Choose a Repro Relay JSON backup',class:'file-input',tabindex:-1});
   importInput.addEventListener('change',() => task(async() => {
     const file = importInput.files?.[0]; if (!file) return;
     try {
@@ -192,7 +192,7 @@ function comparePage(main:HTMLElement,c:Capsule) {
     main.append(h('div',{class:'form-grid compare-selects'},selectField('Before run',beforeId,entries,value => { beforeId=value; draw(); }),selectField('After run',afterId,entries,value => { afterId=value; draw(); })),comparison); draw();
   }
   main.append(h('h2',{},'Completed run history'));
-  [...c.runs].reverse().forEach(run => main.append(h('details',{class:'run-history'},h('summary',{},`Run ${c.runs.indexOf(run)+1} · ${run.spec.version || 'Version not recorded'} · ${time(run.completedAt)}`),h('p',{},'Environment: ',run.spec.environment || 'Not recorded'),h('p',{},'Before you begin: ',run.spec.preconditions || 'Not recorded'),run.fixNote ? h('p',{},'Fix note: ',run.fixNote) : null,...run.spec.steps.map(step => {
+  [...c.runs].reverse().forEach(run => main.append(h('details',{class:'run-history'},h('summary',{},`Run ${c.runs.indexOf(run)+1} · ${run.spec.version || 'Version not recorded'} · ${time(run.completedAt)}`),h('p',{},'Environment: ',run.spec.environment || 'Not recorded'),h('div',{class:'actions'},external('Demo at capture',run.spec.demoUrl),external('Source at capture',run.spec.sourceUrl)),h('p',{},'Before you begin: ',run.spec.preconditions || 'Not recorded'),run.fixNote ? h('p',{},'Fix note: ',run.fixNote) : null,...run.spec.steps.map(step => {
     const result = run.observations.find(row => row.stepId === step.id)!;
     return h('div',{class:'history-step'},h('h3',{},step.action),h('p',{},'Expected: ',step.expected),badge(outcomeLabel[result.outcome],result.outcome),h('p',{},result.actual || 'No observation recorded'),...result.evidenceIds.map(imageId => { const image = c.evidence.find(item => item.id === imageId)!; return evidenceFigure(image); }));
   }),button('Retest this run',() => task(async() => beginRun(c,run.id))))));

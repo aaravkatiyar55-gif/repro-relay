@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Repro Relay</title>
+  <desc id="desc">A bug handoff that keeps the failure, fix and retest together. Caught, reproduced, fixed, checked again.</desc>
+  <rect width="1200" height="360" rx="20" fill="#f6f6ee"/>
+  <rect x="36" y="36" width="1128" height="288" rx="14" fill="#173c32"/>
+  <path d="M78 93h64l-15-15m15 15-15 15M142 123H78l15-15m-15 15 15 15" fill="none" stroke="#e7c478" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="168" y="118" fill="#f6f6ee" font-family="system-ui, sans-serif" font-size="48" font-weight="700">Repro Relay</text>
+  <text x="80" y="177" fill="#d9e7df" font-family="system-ui, sans-serif" font-size="22">A fix is worth checking again.</text>
+  <g font-family="system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">
+    <rect x="80" y="225" width="200" height="52" rx="8" fill="#e7c478"/><text x="180" y="258" fill="#173c32">Caught</text>
+    <path d="M298 251h34m-10-8 10 8-10 8" fill="none" stroke="#e7c478" stroke-width="2"/>
+    <rect x="350" y="225" width="200" height="52" rx="8" fill="#d9e7df"/><text x="450" y="258" fill="#173c32">Reproduced</text>
+    <path d="M568 251h34m-10-8 10 8-10 8" fill="none" stroke="#e7c478" stroke-width="2"/>
+    <rect x="620" y="225" width="200" height="52" rx="8" fill="#d9e7df"/><text x="720" y="258" fill="#173c32">Fixed</text>
+    <path d="M838 251h34m-10-8 10 8-10 8" fill="none" stroke="#e7c478" stroke-width="2"/>
+    <rect x="890" y="225" width="230" height="52" rx="8" fill="#f6f6ee"/><text x="1005" y="258" fill="#173c32">Checked again</text>
+  </g>
+</svg>

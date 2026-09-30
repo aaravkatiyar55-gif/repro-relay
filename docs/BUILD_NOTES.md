@@ -7,7 +7,7 @@ This is a new implementation of a familiar problem. Bug-reporting products alrea
 ## Decisions made during this build
 
 - **Stable step IDs rather than array positions.** A reordered case still matches the original steps. A removed step does not vanish from the comparison.
-- **Copy the specification into every completed run.** Editing the expected result later must not edit yesterday's failed test. Changed actions, expected results or starting conditions get a “Criteria changed” label.
+- **Copy the specification into every completed run.** Editing the expected result later must not edit yesterday's failed test. Changed actions, expected results or starting conditions get a “Criteria changed” label. Run history and HTML reports also use the captured build links, so changing today's demo URL does not replace the earlier one.
 - **Keep outcomes honest.** Pass, fail, blocked and not tested are separate. A blocked or skipped retest cannot resolve an earlier failure. These are manual observations, not independent certification.
 - **Burn redaction into pixels.** A covering rectangle in an HTML overlay could reveal the underlying image. Here the processed PNG contains opaque replacement pixels. The original source remains only in the unsaved editor until it is committed or cancelled.
 - **Import as a separate case.** A JSON backup must pass schema, image dimension, SHA-256 and browser decoding checks before one atomic save. It never overwrites an existing case by default.
@@ -21,6 +21,7 @@ This is a new implementation of a familiar problem. Bug-reporting products alrea
 3. The skip link initially used a class that did not match the CSS. Its hash also collided with application routing. The corrected link focuses the main workspace without changing the case route; it was checked with Enter.
 4. A mobile success toast squeezed “Dismiss” into a narrow column. The button now keeps its width.
 5. Starting another retest could replace an unfinished run. The app now returns to that existing draft and explains that it needs to be completed or discarded first.
+6. Fresh production inspection caught horizontal overflow on the home page: a general input rule overrode the hidden import input's width. A more specific rule now keeps that input inside its control, and it is excluded from the tab order. Desktop and 360px home pages are checked after the fix.
 
 ## The fictional demonstration
 
