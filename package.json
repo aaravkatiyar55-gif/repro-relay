@@ -1,0 +1,21 @@
+{
+  "name": "repro-relay",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A local failure, fix and retest handoff for builders and reviewers.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "check": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "build": "npm run check && vite build && node scripts/build-offline.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "verify": "npm run test && npm run build"
+  },
+  "engines": {"node": ">=24"},
+  "devDependencies": {
+    "fake-indexeddb": "6.2.5",
+    "typescript": "7.0.2",
+    "vite": "8.3.1"
+  }
+}
