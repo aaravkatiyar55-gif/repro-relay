@@ -110,3 +110,13 @@ The GitHub Pages deployment was opened with no Repro Relay cases already saved o
 The final overflow correction was also checked on the public origin at desktop and 360px. The final shared-image export was checked after its successful Pages deployment: a separate local import retained three completed QA runs, the preview contained one image / one evidence reference / zero scripts, and activating the evidence link reached the decoded redacted image. The latest public demo reloaded offline using the final bundle, and no warning/error console entries were observed. Networking was restored, and responsive emulation was cleared. Tracker and mission status are recorded in [SHIP_STATUS.md](SHIP_STATUS.md).
 
 The final report preview uses `about:srcdoc#...` anchors; downloaded HTML uses local `#...` anchors. The generated content is otherwise the same. Frame-scoped locator clicks/keypresses timed out in the automation interface. The browser accessibility click successfully activated the visible link: the frame URL acquired the evidence fragment, and the decoded image reached the top of the frame. This was a tool interaction limitation, not a claimed unsuccessful pass.
+
+## Recovery release on GitHub Pages — 1 October 2026
+
+The deployed `9ca7b4` release loaded `index-fld9JdE2.js` on the public origin. A fictional draft imported through the picker as a separate case retained the exact note `Checkpoint QA partial note: waiting for the reload check.` and Blocked result after an offline reload. It stayed unfinished; earlier public cases were preserved. Networking was restored.
+
+Fresh checks reproduced all three Broken v1 failures: two Alex rows / five registrations, no spaced-Mina match, and filtered Sam's control checking Mina. Fixed v2 produced one Alex / four registrations, only Mina for the spaced query, and Sam checked while Mina stayed unchecked. Outcomes were recorded manually; no automatic pass is claimed.
+
+The recovery view's actual viewport, page and main widths were each 360px. No horizontal overflow was observed. The override was cleared, returning the desktop view to 1280px. No warning/error console entries were observed in that session.
+
+Actual unaltered captures: [public draft recovery](screenshots/public-draft-recovery.jpg) and [public recovery/demo](screenshots/public-recovery-demo.jpg). The earlier draft-download path limitation remains: the complete preview-copy/import fallback was verified, not a browser-saved download path.

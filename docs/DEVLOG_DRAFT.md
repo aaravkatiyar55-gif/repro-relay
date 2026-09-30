@@ -1,50 +1,18 @@
-# First-build devlog draft — not posted
+# Published devlog — 1 October 2026
 
-This is a factual draft prepared with Codex assistance. No duration should be added unless the correct linked tracker record supports it. The matching `repro-relay` label is now linked and the form offers 0h 52m; this file is not proof of a published devlog. Tracker duration does not establish manual human authorship.
+[Devlog 63353](https://stardance.hackclub.com/projects/66998/devlogs/63353) is published on Repro Relay. The project feed confirmed “Devlog created successfully”, one devlog, **52m 16s logged** and four screenshots. The header rounds this to one total hour. No two-hour manual-work or reward claim is made. The former longer draft was superseded by the text below before posting.
 
----
+## Exact published text
 
-Repro Relay now has a working first version. The starting problem was feedback like “it doesn't work” without a version, a sequence of clicks or a result to compare against. The tool keeps that first failure beside the fix note and the next check.
+I used Codex to build Repro Relay around a failure, a fix and the check that follows. Codex implemented most of the code, tests and docs and ran the browser checks; this is substantially AI-assisted work. The recovery update adds saved review checkpoints, portable draft backups and protection against two tabs overwriting each other. A Blocked result and its exact note survived reload, and a separate copy kept both competing edits. Edits made during a save remain unsaved. Reviewer tools now include earlier-result hints, Next unchecked step, comparison filters, context reminders and an issue Markdown preview. Processed PNGs can be downloaded separately. All 28 tests, TypeScript and Pages build checks passed. The latest public demo reproduced all three fictional board bugs and passed their matching fixes. Draft recovery worked offline and the 360px view had no overflow. The draft download-path helper timed out, so its complete preview-copy/import fallback was verified instead. These are actual screenshots with fictional QA data. The form’s tracker duration is used; no two-hour manual-work or reward claim is made. [Try the demo](https://aaravkatiyar55-gif.github.io/repro-relay/#/demo) · [Source, setup and QA](https://github.com/aaravkatiyar55-gif/repro-relay)
 
-A case has ordered steps and stable IDs. Every completed run keeps its own specification and observations. Reordering the current case still matches the same steps. Editing an expected result produces “Criteria changed”; blocked and skipped checks stay unverified. A newer green label cannot replace yesterday's recorded failure.
+## Four published attachments
 
-The small demo is a fictional club signup board. Broken v1 really allows two Alex registrations, misses `  Mina  ` with surrounding spaces, and checks Mina when the filtered row is Sam. Fixed v2 rejects repeated names, trims searches and uses row IDs. All three failures and matching fixes were tried in the browser, including the public deployment. Results start as Not tested; somebody still has to try the board and record what happened.
-
-Screenshots can be processed before they become evidence. Drag opaque rectangles or enter their coordinates with the keyboard. Only the resulting PNG is saved. The redaction check decoded an actual processed screenshot and confirmed that all 14,400 covered pixels were opaque. SHA-256 checks image bytes on import, but it is not proof of authorship or a truthful scene.
-
-The handoff is an editable JSON backup or a script-free HTML report with processed images inside it. Valid imports create separate cases. Invalid JSON and a tampered image digest left existing cases intact. The report preview and cached app were tried offline. The browser automation tool blocks opening local `file:` URLs, so the downloaded report was not opened from disk through that tool; the exact complete HTML, embedded image and offline preview were checked instead.
-
-The first UI pass fixed a skip-link routing problem, a squeezed mobile toast, replacement of an unfinished retest and a hidden file input that caused horizontal overflow. Run history and reports keep the original build links too. Shared evidence is embedded once in the HTML report, with links from each relevant observation.
-
-The next round tackled interrupted reviews. An unfinished run can now be saved as a checkpoint, resumed after reload or carried in a draft backup. The browser check recovered a Blocked result and its exact note without creating a completed run. Importing the preview JSON created another case with the same step ID. That imported review was completed only after the recovery check had actually been performed.
-
-Saving from two tabs was another weak spot. The older tab now receives a conflict message and keeps its edits instead of replacing the newer saved record. Save separate copy keeps both versions. An automated asynchronous-save check also confirmed that typing after a save starts stays marked unsaved; the app cannot report those newer edits as stored.
-
-There is now a Markdown preview for an issue, with captured build details, actual observations, the baseline and the fix note. Processed PNGs can be downloaded individually for attachments. The app does not post the issue. Context reminders point out missing setup or untested steps, and comparison filters help a reviewer find the remaining checks. Changed criteria and blocked results still cannot count as verified fixes.
-
-All 28 tests, strict TypeScript and offline production build checks pass locally. Two-tab recovery, checkpoint import, keyboard navigation, offline reload and the 360px recovery view were also checked in the browser. The new build's public verification is recorded separately in the ship-status file. The README explains the workflow, real decisions and practical testing limits. The browser tool's draft download-path helper timed out, so the preview-copy/import fallback was tested instead; no downloaded path is claimed.
-
-Aarav chose the direction and scope. Codex implemented most of the application, tests, build setup and documentation, and operated the recorded browser checks. This is substantially AI-assisted work. No human-only authorship, eligible duration, reviewer approval or Stardust reward is claimed.
-
-[Try Repro Relay](https://aaravkatiyar55-gif.github.io/repro-relay/#/demo) · [Source and walkthrough](https://github.com/aaravkatiyar55-gif/repro-relay)
-
-## Actual screenshots available for the eventual post
-
-- [Public inspection desk](screenshots/public-home.jpg)
-- [Broken board](screenshots/broken-board.jpg)
-- [Fixed demo](screenshots/fixed-demo.jpg)
-- [Matching failure and retest](screenshots/retest-comparison.jpg)
-- [Changed criteria and incomplete retest](screenshots/criteria-comparison.jpg)
-- [Redaction editor](screenshots/redaction-preview.jpg)
-- [Offline report preview](screenshots/offline-report.jpg)
-- [Compact report with linked processed evidence](screenshots/compact-report.jpg)
-- [Final public report preview](screenshots/public-report.jpg)
-- [Final public interactive demo](screenshots/public-demo.jpg)
-- [360px comparison](screenshots/mobile-comparison.jpg)
-- [360px home page](screenshots/mobile-home.jpg)
-- [Unfinished review recovered after reload](screenshots/draft-recovery.jpg)
+- [Public draft recovery](screenshots/public-draft-recovery.jpg)
+- [Two-tab save conflict](screenshots/save-conflict.jpg)
 - [Issue Markdown handoff](screenshots/issue-handoff.jpg)
-- [Two-tab conflict preserving the older tab's edit](screenshots/save-conflict.jpg)
-- [360px draft recovery](screenshots/mobile-draft-recovery.png)
+- [360px recovery view](screenshots/mobile-draft-recovery.png)
 
-The comparison with changed criteria is a clearly labelled QA fixture, not another released board version. All data shown is fictional.
+All shown data is fictional QA data. The content editor collapsed line breaks, so the final post uses one paragraph with proper spaces and working Markdown links. Its rendered preview was checked before publication. A timeout followed the single Post click; a fresh page proved publication, so the click was not repeated.
+
+Ship remains aria-disabled with no visible explanatory reason. Posting this devlog did not submit a Ship or establish reviewer approval.
